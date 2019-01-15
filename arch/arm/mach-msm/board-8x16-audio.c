@@ -35,10 +35,6 @@
 
 #include <mach/htc_acoustic_alsa.h>
 
-#ifdef CONFIG_AMP_TPA6130A2
-#include <mach/tpa6130a2.h>
-#endif
-
 #ifdef CONFIG_TI_TCA6418
 #include <linux/i2c/tca6418_ioexpander.h>
 #endif
@@ -83,7 +79,6 @@ static int msm8x16_enable_codec_ext_clk(struct snd_soc_codec *codec, int enable,
 static int msm_snd_enable_codec_ext_clk(struct snd_soc_codec *codec, int enable,
 					bool dapm);
 
-static void htc_rcv_amp_ctl(int enable);
 #ifdef CONFIG_HTC_AUD_MBHC
 static struct wcd_mbhc_config mbhc_cfg = {
 	.read_fw_bin = false,
@@ -412,40 +407,6 @@ static void param_set_mask(struct snd_pcm_hw_params *p, int n, unsigned bit)
 static int msm8x16_mclk_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event);
 
-#ifdef CONFIG_AMP_TPA6130A2
-static int msm8x16_ext_hsAmp_event(struct snd_soc_dapm_widget *w,
-			struct snd_kcontrol *k, int event)
-{
-	pr_err("%s()\n", __func__);
-
-	if (SND_SOC_DAPM_EVENT_ON(event)) {
-		pr_err("%s: SND_SOC_DAPM_EVENT_ON \n", __func__);
-		htc_acoustic_hs_amp_ctrl(1,0);
-	} else {
-		pr_err("%s: SND_SOC_DAPM_EVENT_OFF \n", __func__);
-		htc_acoustic_hs_amp_ctrl(0,0);
-	}
-	return 0;
-}
-#endif
-
-#ifdef CONFIG_AMP_TPA2011
-static int msm8x16_rcv_Amp_event(struct snd_soc_dapm_widget *w,
-			struct snd_kcontrol *k, int event)
-{
-	pr_err("%s()\n", __func__);
-
-	if (SND_SOC_DAPM_EVENT_ON(event)) {
-		pr_err("%s: SND_SOC_DAPM_EVENT_ON \n", __func__);
-		htc_rcv_amp_ctl(1);
-	} else {
-		pr_err("%s: SND_SOC_DAPM_EVENT_OFF \n", __func__);
-		htc_rcv_amp_ctl(0);
-	}
-	return 0;
-}
-#endif
-
 static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 
 	SND_SOC_DAPM_SUPPLY("MCLK",  SND_SOC_NOPM, 0, 0,
@@ -453,12 +414,7 @@ static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Handset Mic", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Secondary Mic", NULL),
-#ifdef CONFIG_AMP_TPA6130A2
-	SND_SOC_DAPM_HP("HP_AMP", msm8x16_ext_hsAmp_event),
-#endif
-#ifdef CONFIG_AMP_TPA2011
-	SND_SOC_DAPM_LINE("EAR_AMP", msm8x16_rcv_Amp_event),
-#endif
+
 };
 
 static char const *rx_bit_format_text[] = {"S16_LE", "S24_LE"};
@@ -1118,10 +1074,9 @@ static void htc_hs_amp_ctl(int enable)
 
 		pr_info("%s: gpio = %d, gpio name = %s value %d\n", __func__,
 		htc_hs_config.gpio[i].gpio_no, htc_hs_config.gpio[i].gpio_name,value);
-#ifdef CONFIG_AMP_TPA6130A2
+#ifdef CONFIG_TI_TCA6418
 		
-		if(value == 0)
-			htc_acoustic_hs_amp_ctrl(value,0);
+		htc_acoustic_hs_amp_ctrl(value,0);
 #else
 		gpio_set_value(htc_hs_config.gpio[i].gpio_no, value);
 #endif
@@ -1210,15 +1165,11 @@ static void htc_amp_control(int amp_mask )
 
 		if((amp_mask & HTC_RCV_AMP) && rcv_amp_on == 0) {
 			pr_info("receiver amp on\n");
-#ifndef CONFIG_AMP_TPA2011
 			htc_rcv_amp_ctl(1);
-#endif
 			rcv_amp_on = 1;
 		} else if(!(amp_mask & HTC_RCV_AMP) && rcv_amp_on == 1) {
 			pr_info("receiver amp off\n");
-#ifndef CONFIG_AMP_TPA2011
 			htc_rcv_amp_ctl(0);
-#endif
 			rcv_amp_on = 0;
 		}
 
@@ -1237,12 +1188,6 @@ static void msm_mi2s_snd_shutdown(struct snd_pcm_substream *substream)
 		 substream->name, substream->stream);
 
 	if (!pdata->codec_type) {
-
-		if(hs_amp_on == 1 && substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			pr_info("%s: hs_amp_on==1 trigger-hs amp mute\n", __func__);
-			tpa6130a2_HSMute();
-		}
-
 		ret = mi2s_clk_ctl(substream, false);
 		if (ret < 0)
 			pr_err("%s:clock disable failed\n", __func__);
@@ -1792,16 +1737,16 @@ static void *def_msm8x16_wcd_mbhc_cal(void)
 	btn_low = btn_cfg->_v_btn_low;
 	btn_high = btn_cfg->_v_btn_high;
 
-	btn_low[0] = 84;
-	btn_high[0] = 84;
-	btn_low[1] = 260;
-	btn_high[1] = 272;
-	btn_low[2] = 384;
+	btn_low[0] = 0;
+	btn_high[0] = 100;
+	btn_low[1] = 100;
+	btn_high[1] = 200;
+	btn_low[2] = 200;
 	btn_high[2] = 412;
-	btn_low[3] = 348;
-	btn_high[3] = 460;
-	btn_low[4] = 412;
-	btn_high[4] = 512;
+	btn_low[3] = 412;
+	btn_high[3] = 600;
+	btn_low[4] = 600;
+	btn_high[4] = 784;
 
 	return msm8x16_wcd_cal;
 }
@@ -1826,46 +1771,6 @@ static int msm_spk_amp_put(struct snd_kcontrol *kcontrol,
 	mutex_unlock(&htc_amp_mutex);
 	return 1;
 }
-
-#ifdef CONFIG_AUD_8x16_MI2S
-static int msm_spkr_amp_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	mutex_lock(&htc_amp_mutex);
-	if (ucontrol->value.integer.value[0])
-	{
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_RIGHT,1, 0);
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_LEFT,0, 0);
-	}
-	else
-	{
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_RIGHT,0, 0);
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_LEFT,0, 0);
-	}
-
-	mutex_unlock(&htc_amp_mutex);
-	return 1;
-}
-
-static int msm_spkl_amp_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	mutex_lock(&htc_amp_mutex);
-	if (ucontrol->value.integer.value[0])
-	{
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_RIGHT,0, 0);
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_LEFT,1, 0);
-	}
-	else
-	{
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_RIGHT,0, 0);
-		htc_acoustic_spk_amp_ctrl(SPK_AMP_LEFT,0, 0);
-	}
-
-	mutex_unlock(&htc_amp_mutex);
-	return 1;
-}
-#endif
 
 static int msm_rcv_amp_put(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_value *ucontrol)
@@ -1897,61 +1802,15 @@ static int msm_hs_amp_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
-#ifdef CONFIG_AMP_TPA6130A2
-static int msm_hs_amp_mute_left_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	mutex_lock(&htc_amp_mutex);
-
-	if (ucontrol->value.integer.value[0])
-		tpa6130a2_channel_enable(TPA6130A2_HP_EN_L, 0);
-
-	else
-		tpa6130a2_channel_enable(TPA6130A2_HP_EN_L, 1);
-
-	mutex_unlock(&htc_amp_mutex);
-	return 1;
-}
-
-static int msm_hs_amp_mute_right_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	mutex_lock(&htc_amp_mutex);
-
-	if (ucontrol->value.integer.value[0])
-		tpa6130a2_channel_enable(TPA6130A2_HP_EN_R, 0);
-	else
-		tpa6130a2_channel_enable(TPA6130A2_HP_EN_R, 1);
-
-	mutex_unlock(&htc_amp_mutex);
-	return 1;
-}
-#endif
-
 static const struct snd_kcontrol_new htc_amp_switch_control[] = {
 	SOC_SINGLE_EXT("SPK AMP EN Switch", SND_SOC_NOPM,
 	0, 1, 0, msm_htc_amp_get,msm_spk_amp_put),
-
-#ifdef CONFIG_AUD_8x16_MI2S
-	SOC_SINGLE_EXT("SPKL AMP EN Switch", SND_SOC_NOPM,
-	0, 1, 0, msm_htc_amp_get,msm_spkl_amp_put),
-
-	SOC_SINGLE_EXT("SPKR AMP EN Switch", SND_SOC_NOPM,
-	0, 1, 0, msm_htc_amp_get,msm_spkr_amp_put),
-#endif
 
 	SOC_SINGLE_EXT("RCV AMP EN Switch", SND_SOC_NOPM,
 	0, 1, 0, msm_htc_amp_get,msm_rcv_amp_put),
 
 	SOC_SINGLE_EXT("HS AMP EN Switch", SND_SOC_NOPM,
 	0, 1, 0, msm_htc_amp_get,msm_hs_amp_put),
-#ifdef CONFIG_AMP_TPA6130A2
-	SOC_SINGLE_EXT("HS AMP Mute Left", SND_SOC_NOPM,
-	0, 1, 0, msm_htc_amp_get,msm_hs_amp_mute_left_put),
-
-	SOC_SINGLE_EXT("HS AMP Mute Right", SND_SOC_NOPM,
-	0, 1, 0, msm_htc_amp_get,msm_hs_amp_mute_right_put),
-#endif
 };
 
 
@@ -1976,12 +1835,6 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_new_controls(dapm, msm8x16_dapm_widgets,
 				ARRAY_SIZE(msm8x16_dapm_widgets));
 
-#ifdef CONFIG_AMP_TPA6130A2
-	snd_soc_dapm_enable_pin(dapm, "HP_AMP");
-#endif
-#ifdef CONFIG_AMP_TPA2011
-	snd_soc_dapm_enable_pin(dapm, "EAR_AMP");
-#endif
 	snd_soc_dapm_ignore_suspend(dapm, "Handset Mic");
 	snd_soc_dapm_ignore_suspend(dapm, "Headset Mic");
 	snd_soc_dapm_ignore_suspend(dapm, "Secondary Mic");
@@ -2800,38 +2653,6 @@ static struct snd_soc_dai_link msm8x16_dai[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
-	{
-		.name = "Compress Stub",
-		.stream_name = "Compress Stub",
-		.cpu_dai_name = "MM_STUB",
-		.platform_name	= "msm-pcm-hostless",
-		.dynamic = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},
-		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-	},
-#endif
-#if defined(CONFIG_MACH_DUMMY) || defined(CONFIG_MACH_A31_UL)
-	{
-		.name = "Compress Stub",
-		.stream_name = "Compress Stub",
-		.cpu_dai_name = "MM_STUB",
-		.platform_name	= "msm-pcm-hostless",
-		.dynamic = 1,
-		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
-			    SND_SOC_DPCM_TRIGGER_POST},
-		.no_host_mode = SND_SOC_DAI_LINK_NO_HOST,
-		.ignore_suspend = 1,
-		.ignore_pmdown_time = 1,
-		 
-		.codec_dai_name = "snd-soc-dummy-dai",
-		.codec_name = "snd-soc-dummy",
-	},
 #endif
 };
 
@@ -3501,8 +3322,6 @@ static int msm8x16_asoc_machine_probe(struct platform_device *pdev)
 	pdata->digital_cdc_clk.clk_val = pdata->mclk_freq;
 	pdata->digital_cdc_clk.clk_root = 5;
 	pdata->digital_cdc_clk.reserved = 0;
-	
-	pdata->lb_mode = false;
 #ifdef CONFIG_AUD_8x16_MI2S
 	atomic_set(&quat_mi2s_rsc_ref, 0);
 #endif
@@ -3548,7 +3367,7 @@ static int msm8x16_asoc_machine_probe(struct platform_device *pdev)
 			continue;
 		}
 		for (j = 0; j < ARRAY_SIZE(HTC_AUD_HW_LIST); j++) {
-			if (!strncmp(str, HTC_AUD_HW_LIST[j].name, sizeof(HTC_AUD_HW_LIST[j].name)) &&
+			if (!strcmp(str, HTC_AUD_HW_LIST[j].name) &&
                 strlen(str) == strlen(HTC_AUD_HW_LIST[j].name)) {
 				htc_hw_component_mask |= HTC_AUD_HW_LIST[j].id;
 				dev_info(&pdev->dev, "Found HW: %s, htc_hw_component_mask 0x%X.\n",
