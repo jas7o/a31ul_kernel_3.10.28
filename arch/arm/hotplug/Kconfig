@@ -1,7 +1,7 @@
 config MSM_HOTPLUG
 	bool "MSM hotplug"
 	depends on HOTPLUG_CPU
-	default n
+	default y
 	help
 	  The MSM hotplug driver controls on-/offlining of additional cores based on current cpu load.
 
@@ -11,3 +11,9 @@ config INTELLI_PLUG
 	help
 	  Generic Intelli-plug cpu hotplug driver for ARM SOCs
 
+config ALUCARD_HOTPLUG
+	bool "Alucard hotplug"
+ 	default n
+ 	help
+ 	  Generic Alucard-hotplug cpu hotplug driver for ARM SOCs
+ 	  
